@@ -21,6 +21,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.android.fido2.repository.AuthRepository
 import com.example.android.fido2.repository.SignInState
+import com.example.android.fido2.utils.ApiResponse
 import com.google.android.gms.fido.fido2.api.common.PublicKeyCredential
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -36,6 +37,25 @@ class HomeViewModel @Inject constructor(
     private val repository: AuthRepository
 ) : ViewModel() {
 
+    private val _userData = MutableStateFlow<ApiResponse<Map<String,String>>>(ApiResponse.Loading)
+    val userData = _userData.asStateFlow()
+
+    init {
+        viewModelScope.launch {
+            when (val result = repository.getPersonalInfo()) {
+                is ApiResponse.Error -> {
+                    _userData.value = ApiResponse.Error(result.errorMessage)
+                }
+                ApiResponse.Loading -> {
+                    _userData.value = ApiResponse.Loading
+                }
+                is ApiResponse.Success -> {
+                    _userData.value = ApiResponse.Success(result.data)
+                }
+            }
+        }
+    }
+
     private val _processing = MutableStateFlow(false)
     val processing = _processing.asStateFlow()
 
@@ -46,6 +66,10 @@ class HomeViewModel @Inject constructor(
             else -> "(user)"
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(), "(user)")
+
+    suspend fun getClientDataJson(): String {
+        return repository.getClientDataJson();
+    }
 
     val credentials = repository.credentials.stateIn(
         viewModelScope, SharingStarted.WhileSubscribed(), emptyList()
@@ -76,7 +100,7 @@ class HomeViewModel @Inject constructor(
         viewModelScope.launch {
             _processing.value = true
             try {
-                repository.registerResponse(credential)
+                repository.registerResponse(credential, "")
             } finally {
                 _processing.value = false
             }

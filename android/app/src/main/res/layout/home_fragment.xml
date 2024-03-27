@@ -56,11 +56,23 @@
                 android:layout_height="wrap_content"
                 android:layout_margin="@dimen/spacing_medium"
                 android:labelFor="@id/credentials"
+                android:visibility="gone"
                 android:text="@string/credentials_caption"
                 android:textAppearance="@style/TextAppearance.MaterialComponents.Caption"
                 app:layout_constraintEnd_toEndOf="parent"
                 app:layout_constraintStart_toStartOf="parent"
                 app:layout_constraintTop_toBottomOf="@id/welcome" />
+
+            <TextView
+                android:id="@+id/clientDataJson"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="24dp"
+                tools:text="Hello world"
+                android:visibility="gone"
+                app:layout_constraintEnd_toEndOf="@+id/welcome"
+                app:layout_constraintStart_toStartOf="@+id/welcome"
+                app:layout_constraintTop_toBottomOf="@+id/credentials_caption" />
 
             <androidx.recyclerview.widget.RecyclerView
                 android:id="@+id/credentials"
@@ -70,6 +82,7 @@
                 android:orientation="vertical"
                 android:paddingBottom="@dimen/dodge_app_bar"
                 android:paddingTop="@dimen/spacing_medium"
+                android:visibility="gone"
                 app:layout_constraintBottom_toBottomOf="parent"
                 app:layout_constraintEnd_toEndOf="parent"
                 app:layout_constraintStart_toStartOf="parent"
@@ -121,6 +134,7 @@
             android:layout_height="wrap_content"
             android:contentDescription="@string/add_credential"
             app:layout_anchor="@id/app_bar"
+            android:visibility="gone"
             app:srcCompat="@drawable/ic_add" />
 
     </androidx.coordinatorlayout.widget.CoordinatorLayout>

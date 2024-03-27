@@ -18,11 +18,6 @@
     xmlns:app="http://schemas.android.com/apk/res-auto">
 
     <item
-        android:id="@+id/action_reauth"
-        android:title="@string/reauth"
-        app:showAsAction="ifRoom" />
-
-    <item
         android:id="@+id/action_sign_out"
         android:title="@string/sign_out"
         app:showAsAction="ifRoom" />

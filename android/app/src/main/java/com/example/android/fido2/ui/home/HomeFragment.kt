@@ -31,11 +31,13 @@ import androidx.fragment.app.viewModels
 import androidx.lifecycle.lifecycleScope
 import com.example.android.fido2.R
 import com.example.android.fido2.databinding.HomeFragmentBinding
+import com.example.android.fido2.utils.ApiResponse
 import com.google.android.gms.fido.Fido
 import com.google.android.gms.fido.fido2.api.common.AuthenticatorErrorResponse
 import com.google.android.gms.fido.fido2.api.common.PublicKeyCredential
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 
 @AndroidEntryPoint
@@ -71,6 +73,11 @@ class HomeFragment : Fragment(), DeleteConfirmationFragment.Listener {
         }
         binding.credentials.adapter = credentialAdapter
 
+//        viewLifecycleOwner.lifecycleScope.launchWhenStarted {
+//            val clientDataJson = viewModel.getClientDataJson()
+//            binding.clientDataJson.text = clientDataJson
+//        }
+
         viewLifecycleOwner.lifecycleScope.launchWhenStarted {
             viewModel.credentials.collect { credentials ->
                 credentialAdapter.submitList(credentials)
@@ -79,14 +86,28 @@ class HomeFragment : Fragment(), DeleteConfirmationFragment.Listener {
             }
         }
 
+        viewLifecycleOwner.lifecycleScope.launchWhenStarted {
+            viewModel.userData.collectLatest { result ->
+                when (result) {
+                    is ApiResponse.Error -> {
+//                        Toast.makeText(requireContext(), "${result.errorMessage}", Toast.LENGTH_SHORT).show()
+                    }
+                    ApiResponse.Loading -> {
+
+                    }
+                    is ApiResponse.Success -> {
+                        val userInfo = result.data
+                        val name = userInfo["name"]
+                        binding.clientDataJson.text = "User name : $name"
+                    }
+                }
+            }
+        }
+
         // Menu
         binding.appBar.replaceMenu(R.menu.home)
         binding.appBar.setOnMenuItemClickListener { item ->
             when (item.itemId) {
-                R.id.action_reauth -> {
-                    viewModel.reauth()
-                    true
-                }
                 R.id.action_sign_out -> {
                     viewModel.signOut()
                     true

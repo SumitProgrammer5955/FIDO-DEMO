@@ -23,6 +23,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.view.inputmethod.EditorInfo
 import android.widget.Toast
+import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.ActivityResult
 import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -31,11 +32,11 @@ import androidx.fragment.app.viewModels
 import androidx.lifecycle.lifecycleScope
 import com.example.android.fido2.R
 import com.example.android.fido2.databinding.AuthFragmentBinding
+import com.example.android.fido2.utils.ApiResponse
 import com.google.android.gms.fido.Fido
 import com.google.android.gms.fido.fido2.api.common.AuthenticatorErrorResponse
 import com.google.android.gms.fido.fido2.api.common.PublicKeyCredential
 import dagger.hilt.android.AndroidEntryPoint
-import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 
 @AndroidEntryPoint
@@ -63,7 +64,7 @@ class AuthFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         binding.inputPassword.setOnEditorActionListener { _, actionId, _ ->
             if (actionId == EditorInfo.IME_ACTION_GO) {
-                viewModel.submitPassword()
+                viewModel.submitUsername()
                 true
             } else {
                 false
@@ -72,8 +73,19 @@ class AuthFragment : Fragment() {
 
         viewLifecycleOwner.lifecycleScope.launchWhenStarted {
             launch {
-                viewModel.signinRequests.collect { intent ->
-                    signIntentLauncher.launch(IntentSenderRequest.Builder(intent).build())
+                viewModel.signinRequests.collect { result ->
+                    when (result) {
+                        is ApiResponse.Error -> {
+                            Toast.makeText(requireContext(), "${result.errorMessage}", Toast.LENGTH_SHORT).show()
+                        }
+                        ApiResponse.Loading -> {}
+                        is ApiResponse.Success -> {
+//                            Toast.makeText(requireContext(), "IntentLaunched", Toast.LENGTH_SHORT).show()
+                            signIntentLauncher.launch(
+                                IntentSenderRequest.Builder(result.data).build()
+                            )
+                        }
+                    }
                 }
             }
             launch {
@@ -86,6 +98,19 @@ class AuthFragment : Fragment() {
                 }
             }
         }
+
+        binding.signIn.setOnClickListener {
+            viewModel.submitUsername()
+        }
+
+        requireActivity().onBackPressedDispatcher.addCallback(viewLifecycleOwner, object : OnBackPressedCallback(true) { // 'true' for consuming the event
+                override fun handleOnBackPressed() {
+                    // Handle back press within fragment (e.g., show a confirmation dialog)
+                    viewModel.redirectToSignUp()
+                }
+            }
+        )
+
     }
 
     private fun handleSignResult(activityResult: ActivityResult) {
@@ -102,7 +127,8 @@ class AuthFragment : Fragment() {
                     Toast.makeText(requireContext(), response.errorMessage, Toast.LENGTH_LONG)
                         .show()
                 } else {
-                    viewModel.signinResponse(credential)
+                    val username = binding.inputPassword.text.toString().trim()
+                    viewModel.signinResponse(credential, username)
                 }
             }
         }

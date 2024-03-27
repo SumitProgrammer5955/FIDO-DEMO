@@ -16,15 +16,16 @@
 
 package com.example.android.fido2.ui.username
 
+import android.app.PendingIntent
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.android.fido2.repository.AuthRepository
+import com.example.android.fido2.utils.ApiResponse
+import com.google.android.gms.common.api.Api
+import com.google.android.gms.fido.fido2.api.common.PublicKeyCredential
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -36,23 +37,47 @@ class UsernameViewModel @Inject constructor(
     private val _sending = MutableStateFlow(false)
     val sending = _sending.asStateFlow()
 
-    val username = MutableStateFlow("")
+    private val _pendingIntent = MutableStateFlow<ApiResponse<PendingIntent?>>(ApiResponse.Loading)
+    val pendingIntent = _pendingIntent.asStateFlow()
 
-    val nextEnabled = combine(sending, username) { isSending, username ->
-        !isSending && username.isNotBlank()
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(), false)
 
-    fun sendUsername() {
-        val username = username.value
-        if (username.isNotBlank()) {
-            viewModelScope.launch {
-                _sending.value = true
-                try {
-                    repository.username(username)
-                } finally {
-                    _sending.value = false
+    fun registerUser(name: String, username: String) {
+        viewModelScope.launch {
+            _sending.value = true
+            try {
+                val result = repository.registerUser(name, username)
+                when (result) {
+                    is ApiResponse.Error -> {
+                        _pendingIntent.value = ApiResponse.Error(result.errorMessage)
+                    }
+                    ApiResponse.Loading ->  {
+                        _pendingIntent.value = ApiResponse.Loading
+                    }
+                    is ApiResponse.Success -> {
+                        _pendingIntent.value = ApiResponse.Success(result.data)
+                    }
                 }
+            } finally {
+                _sending.value = false
             }
         }
     }
+
+    fun registerBiometricResponse(credential: PublicKeyCredential, name: String) {
+        viewModelScope.launch {
+            _sending.value = true
+            try {
+                repository.registerResponse(credential, name)
+            } finally {
+                _sending.value = false
+            }
+        }
+    }
+
+    fun redirectToLogin() {
+        viewModelScope.launch {
+            repository.redirectToLogin()
+        }
+    }
+
 }

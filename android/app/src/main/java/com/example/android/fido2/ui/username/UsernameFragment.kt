@@ -16,17 +16,26 @@
 
 package com.example.android.fido2.ui.username
 
+import android.app.Activity
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.view.inputmethod.EditorInfo
+import android.widget.Toast
+import androidx.activity.result.ActivityResult
+import androidx.activity.result.IntentSenderRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
 import androidx.lifecycle.lifecycleScope
+import com.example.android.fido2.R
 import com.example.android.fido2.databinding.UsernameFragmentBinding
+import com.example.android.fido2.utils.ApiResponse
+import com.google.android.gms.fido.Fido
+import com.google.android.gms.fido.fido2.api.common.AuthenticatorErrorResponse
+import com.google.android.gms.fido.fido2.api.common.PublicKeyCredential
 import dagger.hilt.android.AndroidEntryPoint
-import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.collectLatest
 
 @AndroidEntryPoint
 class UsernameFragment : Fragment() {
@@ -44,6 +53,11 @@ class UsernameFragment : Fragment() {
         return binding.root
     }
 
+    private val createCredentialIntentLauncher = registerForActivityResult(
+        ActivityResultContracts.StartIntentSenderForResult(),
+        ::handleCreateCredentialResult
+    )
+
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         viewLifecycleOwner.lifecycleScope.launchWhenStarted {
             viewModel.sending.collect { sending ->
@@ -55,13 +69,70 @@ class UsernameFragment : Fragment() {
             }
         }
 
-        binding.inputUsername.setOnEditorActionListener { _, actionId, _ ->
-            if (actionId == EditorInfo.IME_ACTION_NEXT) {
-                viewModel.sendUsername()
-                true
-            } else {
-                false
+        viewLifecycleOwner.lifecycleScope.launchWhenStarted {
+            viewModel.pendingIntent.collectLatest { result ->
+                when (result) {
+                    is ApiResponse.Error -> {
+                        Toast.makeText(requireContext(), "${result.errorMessage}", Toast.LENGTH_SHORT).show()
+                    }
+                    ApiResponse.Loading -> {}
+                    is ApiResponse.Success -> {
+                        if (result.data != null) {
+//                            Toast.makeText(requireContext(), "IntentLaunched", Toast.LENGTH_SHORT).show()
+                            createCredentialIntentLauncher.launch(
+                                IntentSenderRequest.Builder(result.data).build()
+                            )
+                        }
+                    }
+                }
             }
+        }
+
+
+        binding.next.setOnClickListener {
+            validateTwoInputField()
+        }
+
+        binding.login.setOnClickListener {
+            viewModel.redirectToLogin()
+        }
+
+    }
+
+    private fun handleCreateCredentialResult(activityResult: ActivityResult) {
+        val bytes = activityResult.data?.getByteArrayExtra(Fido.FIDO2_KEY_CREDENTIAL_EXTRA)
+        when {
+            activityResult.resultCode != Activity.RESULT_OK ->
+                Toast.makeText(requireContext(), R.string.cancelled, Toast.LENGTH_LONG).show()
+
+            bytes == null ->
+                Toast.makeText(requireContext(), R.string.credential_error, Toast.LENGTH_LONG)
+                    .show()
+
+            else -> {
+                val credential = PublicKeyCredential.deserializeFromBytes(bytes)
+                val response = credential.response
+                if (response is AuthenticatorErrorResponse) {
+                    Toast.makeText(requireContext(), "${response.errorMessage} code ${response.errorCode}", Toast.LENGTH_LONG).show()
+                } else {
+                    var name = binding.name.editText?.text.toString().trim()
+                    Toast.makeText(requireContext(), "LoggedIn $name", Toast.LENGTH_SHORT).show()
+                    viewModel.registerBiometricResponse(credential, name)
+                }
+            }
+        }
+    }
+
+    private fun validateTwoInputField() {
+        var name = binding.name.editText?.text.toString().trim()
+        var username = binding.username.editText?.text.toString().trim()
+
+        if (name.isNotBlank() && username.isNotBlank()) {
+            viewModel.registerUser(name, username)
+        } else if (name.isBlank()) {
+            Toast.makeText(requireContext(), "Please enter name", Toast.LENGTH_SHORT).show()
+        } else {
+            Toast.makeText(requireContext(), "Please enter username", Toast.LENGTH_SHORT).show()
         }
     }
 

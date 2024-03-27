@@ -21,6 +21,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.android.fido2.repository.AuthRepository
 import com.example.android.fido2.repository.SignInState
+import com.example.android.fido2.utils.ApiResponse
 import com.google.android.gms.fido.fido2.api.common.PublicKeyCredential
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.channels.Channel
@@ -39,7 +40,7 @@ class AuthViewModel @Inject constructor(
     private val repository: AuthRepository
 ) : ViewModel() {
 
-    val password = MutableStateFlow("")
+    val username = MutableStateFlow("")
 
     private val _processing = MutableStateFlow(false)
     val processing = _processing.asStateFlow()
@@ -47,22 +48,12 @@ class AuthViewModel @Inject constructor(
     private val _errorMessage = MutableStateFlow<String?>(null)
     val errorMessage = _errorMessage.asStateFlow()
 
-    val signInEnabled = combine(processing, password) { isProcessing, password ->
+    val signInEnabled = combine(processing, username) { isProcessing, password ->
         !isProcessing && password.isNotBlank()
     }.stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
-    private val signinRequestChannel = Channel<PendingIntent>(capacity = Channel.CONFLATED)
+    private val signinRequestChannel = Channel<ApiResponse<PendingIntent>>(capacity = Channel.CONFLATED)
     val signinRequests = signinRequestChannel.receiveAsFlow()
-
-    init {
-        // See if we can authenticate using FIDO.
-        viewModelScope.launch {
-            val intent = repository.signinRequest()
-            if (intent != null) {
-                signinRequestChannel.send(intent)
-            }
-        }
-    }
 
     val currentUsername = repository.signInState.map { state ->
         when (state) {
@@ -72,25 +63,44 @@ class AuthViewModel @Inject constructor(
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(), "(user)")
 
-    fun submitPassword() {
+    fun submitUsername() {
         viewModelScope.launch {
             _processing.value = true
             try {
-                repository.password(password.value)
+                val result = repository.signinRequest(username.value)
+                when (result) {
+                    is ApiResponse.Error -> {
+                        signinRequestChannel.send(ApiResponse.Error(result.errorMessage))
+                    }
+                    ApiResponse.Loading ->  {
+                        signinRequestChannel.send(ApiResponse.Loading)
+                    }
+                    is ApiResponse.Success -> {
+                        if (result.data != null) {
+                            signinRequestChannel.send(ApiResponse.Success(result.data))
+                        }
+                    }
+                }
             } finally {
                 _processing.value = false
             }
         }
     }
 
-    fun signinResponse(credential: PublicKeyCredential) {
+    fun signinResponse(credential: PublicKeyCredential, username: String) {
         viewModelScope.launch {
             _processing.value = true
             try {
-                repository.signinResponse(credential)
+                repository.signinResponse(credential, username)
             } finally {
                 _processing.value = false
             }
+        }
+    }
+
+    fun redirectToSignUp() {
+        viewModelScope.launch {
+            repository.redirectToSignUp()
         }
     }
 

@@ -16,6 +16,8 @@
 
 package com.example.android.fido2.api
 
+import com.google.android.gms.common.api.Api
+
 /**
  * Represents the result of an API call.
  */
@@ -41,4 +43,6 @@ sealed class ApiResult<out R> {
      * API returned unsuccessfully with code 401, and the user should be signed out.
      */
     object SignedOutFromServer : ApiResult<Nothing>()
+
+//    object Error : ApiResult<Nothing>()
 }
